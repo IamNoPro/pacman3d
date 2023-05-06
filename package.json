@@ -17,7 +17,10 @@
   },
   "homepage": "https://github.com/IamNoPro/pacman3d#readme",
   "dependencies": {
-    "three": "^0.152.2"
+    "cannon-es": "^0.20.0",
+    "cannon-es-debugger": "^1.0.0",
+    "three": "^0.152.2",
+    "three-csg-ts": "^3.1.13"
   },
   "devDependencies": {
     "vite": "^4.3.4"
