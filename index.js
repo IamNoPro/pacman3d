@@ -5,13 +5,14 @@ import CannonDebugger from 'cannon-es-debugger'
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import {CharacterControls} from './characterControls'
+import {Pacman} from './characterControls'
 
 // GLOBAL VARIABLES
-let scene, camera, renderer, world, cannonDebugger, controls
-let timeStep = 1/60;
-let groundMaterial;
-let characterControls;
+let scene, camera, renderer
+let animationId
+let pacman;
+
+//CONTROLS KEYS
 let lastkey= ''
 const keys = {
     w: {
@@ -27,6 +28,7 @@ const keys = {
         pressed: false
     }
 }
+let walls = []
 const clock = new THREE.Clock()
 const loader = new GLTFLoader()
 const WIDTH = 104
@@ -62,15 +64,38 @@ const board = [
 
 const textureLoader = new THREE.TextureLoader()
 
+
+
+
+//CLASSES
+class Pellet {
+    constructor(){
+        this.points = 10;
+    }
+}
+class Wall {
+    constructor(randomHeight = 2){
+        this.color = 'violet'
+        this.width = 4
+        this.height = randomHeight
+        this.depth = 4
+        this.geometry = new RoundedBoxGeometry(this.width,this.height,this.depth,10,1)
+        this.material = new THREE.MeshStandardMaterial({
+            color: this.color,
+            roughness: 0.1,
+        })
+        this.mesh = new THREE.Mesh(this.geometry,this.material)
+    }
+}
+
+
+
 //SETUP FUNCTIONS
 initScene()
-initWorld()
 createGround()
 initLights()
 renderBoard()
 createPacman()
-
-// createWall(4,15,4,-48,0,-38)
 animate()
 
 function initScene(){
@@ -87,16 +112,6 @@ function initScene(){
     renderer.setPixelRatio(window.devicePixelRatio)
     renderer.setSize(window.innerWidth, window.innerHeight)
     document.body.appendChild(renderer.domElement)
-}
-
-function initWorld(){
-    world = new CANNON.World()
-    world.gravity.set(0, -10,0)
-
-    cannonDebugger = new CannonDebugger(scene,world, {
-        color: 0xfffff,
-        scale: 1.0
-    })
 }
 
 // function initOrbitControls(){
@@ -147,62 +162,20 @@ function createGround(){
     subRes = CSG.subtract(subRes,box2)
     scene.add(subRes);
 
-    //CANNON JS
-    groundMaterial = new CANNON.Material("groundMaterial")
-    const groundShape = new CANNON.Box(new CANNON.Vec3(40,1,40))
-    const groundBody = new CANNON.Body({mass: 0, shape: groundShape, material: groundMaterial})
-    world.addBody(groundBody)
+    
 }
 
-function createWall(width,height,depth,x,y,z){
-    const wallMaterial = new CANNON.Material('wallMaterial')
-    const wallShape = new CANNON.Box(new CANNON.Vec3(width/2,height/2,depth/2))
-    const wallBody = new CANNON.Body({mass:0, shape: wallShape, material: wallMaterial})
-    wallBody.position = new CANNON.Vec3(x,y,z)
-    world.addBody(wallBody)
 
-
-    const roundedBoxGeometry = new RoundedBoxGeometry(width,height,depth,10,1)
-    const mat = new THREE.MeshStandardMaterial({
-        color: 'violet',
-        metalness: 1,
-        roughness: 0.1,
-        
-    })
-    const boxMesh = new THREE.Mesh(roundedBoxGeometry,mat)
-    scene.add(boxMesh)
-    boxMesh.position.copy(wallBody.position)
-}
-//---------------------------//
 //MODEL
 function createPacman(){
-    const pacMat = new CANNON.Material('pacmanMaterial')
-    const pacShape = new CANNON.Box(new CANNON.Vec3(3,3,3))
-    const pacBody = new CANNON.Body({
-        mass: 100, 
-        material: pacMat, 
-        shape: pacShape,
-        
-    })
-    pacBody.position = new CANNON.Vec3(0,10,0)
-    world.addContactMaterial(new CANNON.ContactMaterial(groundMaterial,pacMat,{
-        friction:1,
-        restitution:0
-    }))
-    world.addBody(pacBody)
-
     loader.load('models/pacman_animated.glb',(gltf)=>{
     const model = gltf.scene
     model.position.y = 4
     model.traverse(function(object){
         if(object.isMesh) object.castShadow = true
     })
-    model.scale.set(3,3,3) 
-    model.position.copy(pacBody.position)
-    model.quaternion.copy(pacBody.quaternion)
-
+    model.scale.set(3,3,3)
     scene.add(model)
-
     const gltfAnimations = gltf.animations
     const mixer = new THREE.AnimationMixer(model)
     const animationMap = new Map()
@@ -210,7 +183,7 @@ function createPacman(){
         animationMap.set(a.name, mixer.clipAction(a))
     })
     console.log(animationMap)
-    characterControls = new CharacterControls(pacBody,model,mixer,animationMap,camera,'Action',{x:0,y:0})
+    pacman = new Pacman(model,mixer,animationMap,camera,'Action',{x:0,y:0})
 
 })
 }
@@ -218,6 +191,16 @@ function createPacman(){
 
 
 
+//CREATE PELLETS
+function createPellets(){
+    for(let row = 1; row < ROWS - 1; row++){
+        for(let col = 1; col < COLS - 1; col++ ){
+            if(board[row][col] === 1){
+                board[row][col] = new Pellet()
+            }
+        }
+    }
+}
 
 function renderBoard(){
     for(let row = 0; row < ROWS; row++){
@@ -225,41 +208,132 @@ function renderBoard(){
             const cell = board[row][col]
             if(cell === 0){
                 const randomHeight = Math.random() * 5 + Math.random() * 5 + 1
-                const wallMaterial = new CANNON.Material('wallMaterial')
-                const wallShape = new CANNON.Box(new CANNON.Vec3(2,randomHeight/2,2))
-                const wallBody = new CANNON.Body({mass:0, shape: wallShape, material: wallMaterial})
-                
-                const geo = new RoundedBoxGeometry(4,randomHeight,4,10,1)
-                const mat = new THREE.MeshStandardMaterial({
-                    color: 'violet',
-                    roughness: 0.1,
-                })
-                const wallMesh = new THREE.Mesh(geo,mat)
-                wallBody.position.x = (col * 2 - COLS) * 2 + 2
-                wallBody.position.z = (row * 2 - ROWS) * 2 + 2
-                wallBody.position.y = randomHeight/2
-                world.addBody(wallBody)
-                wallMesh.position.copy(wallBody.position)
-                scene.add(wallMesh)
-                
+                const wall =  new Wall(randomHeight)
+                board[row][col] = wall
+                if(wall){
+                    wall.mesh.position.x = (col * 2 - COLS) * 2 + 2
+                    wall.mesh.position.z = (row * 2 - ROWS) * 2 + 2
+                    wall.mesh.position.y = randomHeight/2
+                    walls.push(wall)
+                    scene.add(wall.mesh)
+                }  
             }
         }
     }
 }
 
 
+//Detect Collision
+function detectCollision({pacman,wall}){
+    const padding = wall.width - pacman.radius - 0.5
+    return(
+        pacman.model.position.z - pacman.radius + pacman.velocity.y <= wall.mesh.position.z + wall.depth / 2 + padding 
+        && pacman.model.position.x + pacman.radius + pacman.velocity.x >= wall.mesh.position.x - padding - wall.width / 2
+        && pacman.model.position.z + pacman.radius + pacman.velocity.y >= wall.mesh.position.z - padding - wall.depth / 2
+        && pacman.model.position.x - pacman.radius + pacman.velocity.x <= wall.mesh.position.x + wall.width / 2 + padding
+    )
+    
+}
+
+
+
 function animate(){
-    world.step(timeStep)
     // controls.update()
     let mixerUpdateDelta = clock.getDelta()
     renderer.render(scene,camera)
-    if(characterControls){
-        characterControls.update(mixerUpdateDelta,keys,lastkey)
+    if(pacman){
+        pacman.currentAction = 'eat once.011'
+        if(keys.w.pressed && lastkey === 'w'){
+            for(let i = 0; i < walls.length; i++){
+                const wall = walls[i]
+                if(detectCollision({
+                    pacman: {
+                        ...pacman,
+                        velocity: {
+                            x: 0,
+                            y: -0.5
+                        }
+                    }, wall
+                })){
+                    pacman.velocity.y = 0
+                    break
+                } else {
+                    pacman.velocity.y = -0.5
+                    
+                }
+            }
+        } else if(keys.a.pressed && lastkey === 'a'){
+            for(let i = 0; i < walls.length; i++){
+                const wall = walls[i]
+                if(detectCollision({
+                    pacman: {
+                        ...pacman,
+                        velocity: {
+                            x: -0.5,
+                            y: 0
+                        }
+                    }, wall
+                })){
+                    pacman.velocity.x = 0
+                    break
+                } else {
+                    pacman.velocity.x = -0.5
+                    
+                }
+            }
+        } else if(keys.s.pressed && lastkey === 's'){
+            for(let i = 0; i < walls.length; i++){
+                const wall = walls[i]
+                if(detectCollision({
+                    pacman: {
+                        ...pacman,
+                        velocity: {
+                            x: 0,
+                            y: 0.5
+                        }
+                    }, wall
+                })){
+                    pacman.velocity.y = 0
+                    break
+                } else {
+                    pacman.velocity.y = 0.5
+                    
+                }
+            }
+        } else if(keys.d.pressed && lastkey === 'd'){
+            for(let i = 0; i < walls.length; i++){
+                const wall = walls[i]
+                if(detectCollision({
+                    pacman: {
+                        ...pacman,
+                        velocity: {
+                            x: 0.5,
+                            y: 0
+                        }
+                    }, wall
+                })){
+                    pacman.velocity.x = 0
+                    break
+                } else {
+                    pacman.velocity.x = 0.5
+                    
+                }
+            }
+        }
+        walls.forEach((wall) => {
+            if(detectCollision({pacman,wall})){
+                pacman.velocity.x = 0
+                pacman.velocity.y = 0
+            }
+        })
+        if(pacman.velocity.x > 0) pacman.rotateQuaternion.setFromAxisAngle(new THREE.Vector3(0,1,0), Math.PI/2)
+        else if(pacman.velocity.x < 0) pacman.rotateQuaternion.setFromAxisAngle(new THREE.Vector3(0,1,0), -Math.PI/2)
+        else if(pacman.velocity.y < 0 ) pacman.rotateQuaternion.setFromAxisAngle(new THREE.Vector3(0,1,0), Math.PI)
+        else if(pacman.velocity.y > 0) pacman.rotateQuaternion.setFromAxisAngle(new THREE.Vector3(0,1,0), 0)
+        pacman.update(mixerUpdateDelta)
     }
-    cannonDebugger.update()
-    requestAnimationFrame(animate)
+    animationId = requestAnimationFrame(animate)
 }
-
 window.addEventListener('keydown', ({key}) => {
     switch(key){
         case 'w':
