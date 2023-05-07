@@ -8,9 +8,10 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import {Pacman} from './characterControls'
 
 // GLOBAL VARIABLES
-let scene, camera, renderer
+let scene, camera, renderer, controls
 let animationId
 let pacman;
+let pelletCounter = 0
 
 //CONTROLS KEYS
 let lastkey= ''
@@ -29,6 +30,7 @@ const keys = {
     }
 }
 let walls = []
+let pellets = []
 const clock = new THREE.Clock()
 const loader = new GLTFLoader()
 const WIDTH = 104
@@ -38,26 +40,26 @@ const ROWS = 22
 const COLS = 26
 const board = [
     [0,0,0,0,0,0,0,-1,-1,0,0,0,0,0,0,0,0,-1,-1,0,0,0,0,0,0,0],
-    [0,1,1,1,1,1,0,-1,-1,0,1,1,1,1,1,1,0,-1,-1,0,1,1,1,1,1,0],
-    [0,1,1,1,1,1,0,-1,-1,0,1,1,1,1,1,1,0,-1,-1,0,1,1,1,1,1,0],
-    [0,1,1,0,1,1,0,0,0,0,1,1,0,0,1,1,0,0,0,0,1,1,0,1,1,0],
-    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-    [0,1,1,0,1,1,0,1,1,0,0,0,0,0,0,0,0,1,1,0,1,1,0,1,1,0],
-    [0,1,1,0,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,0,1,1,0],
-    [0,1,1,0,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,0,1,1,0],
-    [0,1,1,0,1,1,0,1,1,0,1,1,0,0,1,1,0,1,1,0,1,1,0,1,1,0],
-    [0,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,0],
-    [0,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,0],
-    [0,1,1,0,1,1,0,1,1,0,1,1,0,0,1,1,0,1,1,0,1,1,0,1,1,0],
-    [0,1,1,0,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,0,1,1,0],
-    [0,1,1,0,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,0,1,1,0],
-    [0,1,1,0,1,1,0,1,1,0,0,0,0,0,0,0,0,1,1,0,1,1,0,1,1,0],
-    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-    [0,1,1,0,1,1,0,0,0,0,1,1,0,0,1,1,0,0,0,0,1,1,0,1,1,0],
-    [0,1,1,1,1,1,0,-1,-1,0,1,1,1,1,1,1,0,-1,-1,0,1,1,1,1,1,0],
-    [0,1,1,1,1,1,0,-1,-1,0,1,1,1,1,1,1,0,-1,-1,0,1,1,1,1,1,0],
+    [0,1,1,1,1,-1,0,-1,-1,0,1,1,1,1,1,-1,0,-1,-1,0,1,1,1,1,-1,0],
+    [0,1,-1,-1,-1,-1,0,-1,-1,0,1,-1,-1,-1,1,-1,0,-1,-1,0,-1,-1,-1,1,-1,0],
+    [0,1,-1,0,-1,-1,0,0,0,0,1,-1,0,0,1,-1,0,0,0,0,-1,-1,0,1,-1,0],
+    [0,1,-1,-1,-1,-1,-1,1,1,1,1,1,1,1,1,1,1,1,-1,-1,-1,-1,-1,1,-1,0],
+    [0,1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,1,-1,0],
+    [0,1,-1,0,-1,-1,0,1,-1,0,0,0,0,0,0,0,0,1,-1,0,-1,-1,0,1,-1,0],
+    [0,1,-1,0,-1,-1,0,1,1,1,1,1,1,1,1,1,1,1,-1,0,-1,-1,0,1,-1,0],
+    [0,1,-1,0,-1,-1,0,1,-1,-1,1,-1,-1,-1,1,-1,-1,1,-1,0,-1,-1,0,1,-1,0],
+    [0,1,-1,0,-1,-1,0,1,-1,0,1,-1,0,0,1,-1,0,1,-1,0,-1,-1,0,1,-1,0],
+    [0,1,1,1,1,1,1,1,-1,0,1,1,1,1,1,-1,0,1,1,1,1,1,1,1,-1,0],
+    [0,1,-1,-1,-1,-1,-1,1,-1,0,1,-1,-1,-1,1,-1,0,1,-1,-1,-1,-1,-1,1,-1,0],
+    [0,1,-1,0,-1,-1,0,1,-1,0,1,-1,0,0,1,-1,0,1,-1,0,-1,-1,0,1,-1,0],
+    [0,1,-1,0,-1,-1,0,1,1,1,1,1,1,1,1,1,1,1,-1,0,-1,-1,0,1,-1,0],
+    [0,1,-1,0,-1,-1,0,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,0,-1,-1,0,1,-1,0],
+    [0,1,-1,0,-1,-1,0,1,-1,0,0,0,0,0,0,0,0,1,-1,0,-1,-1,0,1,-1,0],
+    [0,1,-1,-1,-1,-1,-1,1,1,1,1,1,1,1,1,1,1,1,-1,-1,-1,-1,-1,1,-1,0],
+    [0,1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,0],
+    [0,1,-1,0,-1,-1,0,0,0,0,1,-1,0,0,1,-1,0,0,0,0,-1,-1,0,1,-1,0],
+    [0,1,1,1,1,-1,0,-1,-1,0,1,1,1,1,1,-1,0,-1,-1,0,1,1,1,1,-1,0],
+    [0,-1,-1,-1,-1,-1,0,-1,-1,0,-1,-1,-1,-1,-1,-1,0,-1,-1,0,-1,-1,-1,-1,-1,0],
     [0,0,0,0,0,0,0,-1,-1,0,0,0,0,0,0,0,0,-1,-1,0,0,0,0,0,0,0],
 ]
 
@@ -71,6 +73,18 @@ const textureLoader = new THREE.TextureLoader()
 class Pellet {
     constructor(){
         this.points = 10;
+        this.radius = 0.8
+        this.color = 'white'
+        this.geometry = new THREE.SphereGeometry(this.radius,32,32)
+        this.material = new THREE.MeshStandardMaterial({
+            color: this.color,
+            roughness: 0.2,
+            metalness: 0,
+            flatShading: true
+        })
+        this.mesh = new THREE.Mesh(this.geometry,this.material)
+        this.position = {x: 0, z: 0}
+        
     }
 }
 class Wall {
@@ -94,7 +108,9 @@ class Wall {
 initScene()
 createGround()
 initLights()
+initOrbitControls()
 renderBoard()
+createPellets()
 createPacman()
 animate()
 
@@ -114,15 +130,15 @@ function initScene(){
     document.body.appendChild(renderer.domElement)
 }
 
-// function initOrbitControls(){
-//     controls = new OrbitControls(camera, renderer.domElement)
-//     controls.enableDamping = true
-//     controls.minDistance = 20
-//     controls.maxDistance = 80
-//     controls.enablePan = false
-//     controls.maxPolarAngle = Math.PI / 2 - 0.05
-//     controls.update();
-// }
+function initOrbitControls(){
+    controls = new OrbitControls(camera, renderer.domElement)
+    controls.enableDamping = true
+    controls.minDistance = 40
+    controls.maxDistance = 200
+    controls.enablePan = false
+    controls.maxPolarAngle = Math.PI / 2 - 0.05
+    controls.update();
+}
 
 function initLights(){
     
@@ -183,9 +199,8 @@ function createPacman(){
         animationMap.set(a.name, mixer.clipAction(a))
     })
     console.log(animationMap)
-    pacman = new Pacman(model,mixer,animationMap,camera,'Action',{x:0,y:0})
-
-})
+    pacman = new Pacman(model,mixer,animationMap,camera,'',{x:0,y:0})
+    })
 }
 
 
@@ -196,7 +211,18 @@ function createPellets(){
     for(let row = 1; row < ROWS - 1; row++){
         for(let col = 1; col < COLS - 1; col++ ){
             if(board[row][col] === 1){
-                board[row][col] = new Pellet()
+                const pellet = new Pellet()
+                board[row][col] = pellet
+                if(pellet){
+                    pellet.mesh.position.x = (col * 2 - COLS) * 2 + 4
+                    pellet.mesh.position.z = (row * 2 - ROWS) * 2 + 4
+                    pellet.mesh.position.y = 2
+                    pellets.push(pellet)
+                    pellet.position.x = pellet.mesh.position.x
+                    pellet.position.z = pellet.mesh.position.z
+                    scene.add(pellet.mesh)
+                }
+
             }
         }
     }
@@ -225,25 +251,24 @@ function renderBoard(){
 
 //Detect Collision
 function detectCollision({pacman,wall}){
-    const padding = wall.width - pacman.radius - 0.5
+    const padding = wall.width - pacman.radius - 0.2
     return(
         pacman.model.position.z - pacman.radius + pacman.velocity.y <= wall.mesh.position.z + wall.depth / 2 + padding 
         && pacman.model.position.x + pacman.radius + pacman.velocity.x >= wall.mesh.position.x - padding - wall.width / 2
         && pacman.model.position.z + pacman.radius + pacman.velocity.y >= wall.mesh.position.z - padding - wall.depth / 2
         && pacman.model.position.x - pacman.radius + pacman.velocity.x <= wall.mesh.position.x + wall.width / 2 + padding
     )
-    
 }
 
 
 
 function animate(){
-    // controls.update()
-    let mixerUpdateDelta = clock.getDelta()
+    controls.update()
+    let mixerUpdateDelta = 0.04
     renderer.render(scene,camera)
     if(pacman){
-        pacman.currentAction = 'eat once.011'
         if(keys.w.pressed && lastkey === 'w'){
+            pacman.currentAction = 'eat once.011'
             for(let i = 0; i < walls.length; i++){
                 const wall = walls[i]
                 if(detectCollision({
@@ -251,25 +276,26 @@ function animate(){
                         ...pacman,
                         velocity: {
                             x: 0,
-                            y: -0.5
+                            y: -pacman.speed
                         }
                     }, wall
                 })){
                     pacman.velocity.y = 0
                     break
                 } else {
-                    pacman.velocity.y = -0.5
+                    pacman.velocity.y = -pacman.speed
                     
                 }
             }
         } else if(keys.a.pressed && lastkey === 'a'){
+            pacman.currentAction = 'eat once.011'
             for(let i = 0; i < walls.length; i++){
                 const wall = walls[i]
                 if(detectCollision({
                     pacman: {
                         ...pacman,
                         velocity: {
-                            x: -0.5,
+                            x: -pacman.speed,
                             y: 0
                         }
                     }, wall
@@ -277,11 +303,12 @@ function animate(){
                     pacman.velocity.x = 0
                     break
                 } else {
-                    pacman.velocity.x = -0.5
+                    pacman.velocity.x = -pacman.speed
                     
                 }
             }
         } else if(keys.s.pressed && lastkey === 's'){
+            pacman.currentAction = 'eat once.011'
             for(let i = 0; i < walls.length; i++){
                 const wall = walls[i]
                 if(detectCollision({
@@ -289,25 +316,26 @@ function animate(){
                         ...pacman,
                         velocity: {
                             x: 0,
-                            y: 0.5
+                            y: pacman.speed
                         }
                     }, wall
                 })){
                     pacman.velocity.y = 0
                     break
                 } else {
-                    pacman.velocity.y = 0.5
+                    pacman.velocity.y = pacman.speed
                     
                 }
             }
         } else if(keys.d.pressed && lastkey === 'd'){
+            pacman.currentAction = 'eat once.011'
             for(let i = 0; i < walls.length; i++){
                 const wall = walls[i]
                 if(detectCollision({
                     pacman: {
                         ...pacman,
                         velocity: {
-                            x: 0.5,
+                            x: pacman.speed,
                             y: 0
                         }
                     }, wall
@@ -315,7 +343,7 @@ function animate(){
                     pacman.velocity.x = 0
                     break
                 } else {
-                    pacman.velocity.x = 0.5
+                    pacman.velocity.x = pacman.speed
                     
                 }
             }
@@ -330,6 +358,22 @@ function animate(){
         else if(pacman.velocity.x < 0) pacman.rotateQuaternion.setFromAxisAngle(new THREE.Vector3(0,1,0), -Math.PI/2)
         else if(pacman.velocity.y < 0 ) pacman.rotateQuaternion.setFromAxisAngle(new THREE.Vector3(0,1,0), Math.PI)
         else if(pacman.velocity.y > 0) pacman.rotateQuaternion.setFromAxisAngle(new THREE.Vector3(0,1,0), 0)
+
+
+        //PELLET COLLISION CHECK
+        for(let i = 0; i < pellets.length; i++){
+            const pellet = pellets[i]
+            if(Math.hypot(pellet.position.x - pacman.model.position.x, pellet.position.z - pacman.model.position.z) < pacman.radius){
+                
+                pellet.position.x = (i+1) * 100
+                pellet.position.y = (i+1) * 100
+                pacman.score += pellet.points
+                pelletCounter +=1
+                console.log(pelletCounter)
+                scene.remove(pellet.mesh)
+                
+            }
+        }
         pacman.update(mixerUpdateDelta)
     }
     animationId = requestAnimationFrame(animate)
